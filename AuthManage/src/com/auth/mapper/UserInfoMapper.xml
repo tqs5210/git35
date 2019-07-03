@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.auth.mapper.UserInfoMapper">
+	<!-- 根据用户对象传递过来的参数进行用户登录 -->
+   <select id="login"  parameterType="UserInfo" resultType="UserInfo">
+      SELECT user_code userCode FROM `user_info` 
+	      WHERE `user_code`=#{userCode} 
+	       AND `user_pwd`=MD5(#{userPwd})
+	       and is_delete='0'
+	       and user_state='1'
+   </select>
+   
+   <!-- 权限映射resultMap -->
+   <resultMap type="AuthInfo" id="authInfoMap">
+	   <id column="auth_id" property="authId"/>
+	   <result column="auth_name" property="authName"/>
+	   <result column="auth_url" property="authUrl"/>
+   </resultMap>
+   <!-- 查询当前登录用户对应的权限 -->
+   <select id="getUserAuth" parameterType="hashmap" resultMap="authInfoMap">
+  SELECT auth_id,auth_name,auth_url FROM `auth_info`
+    WHERE `auth_id` IN (   
+	       SELECT `auth_id` FROM ROLE_AUTH
+	  WHERE `role_id` IN (
+		  SELECT userRole.`role_id` FROM USER_ROLE userRole,ROLE role
+			WHERE userRole.`role_id`=role.`role_id`
+			AND role.`role_state`='1'
+			AND userRole.`user_id`=#{userId}
+	)
+    
+    )
+    AND `parent_id`=#{authId}
+    AND `auth_state`='1'
+  UNION
+
+   SELECT auth_id,auth_name,auth_url  FROM `auth_info`
+    WHERE `auth_id` IN ( 
+	  SELECT `auth_id` FROM user_auth  
+	      WHERE  `user_id`=#{userId}
+    )
+    AND `parent_id`=#{authId}
+    AND `auth_state`='1'
+UNION
+
+  SELECT auth_id,auth_name,auth_url  FROM `auth_info`
+    WHERE `auth_id` IN (      
+	    SELECT `auth_id` FROM ROLE_AUTH
+	  WHERE `role_id` IN (
+		 SELECT groupRole.`role_id` FROM group_role  groupRole,ROLE role
+			WHERE groupRole.`role_id`=role.`role_id`
+			AND role.`role_state`='1'
+			AND groupRole.`group_id`=#{groupId}
+	  ) 
+    )
+    AND `parent_id`=#{authId}
+    AND `auth_state`='1'
+    
+   </select>
+   
+   <resultMap type="UserInfo" id="userResultMap">
+      <id property="userId" column="user_id"/>
+      <result property="groupId" column="group_id"/>
+      <result property="userCode" column="user_code"/>
+      <result property="nickName" column="nick_name"/>
+      <result property="userState" column="user_state"/>
+      <result property="createTime" column="create_time"/>
+   </resultMap>
+   <!-- 多条件查询用户列表 -->
+   <select id="findAll" parameterType="hashmap" resultMap="userResultMap">
+       SELECT user_id,group_id,user_code,nick_name,user_state,create_time FROM  `user_info`  
+		where is_delete='0'
+		<if test="user.userCode!=null and user.userCode!=''">
+		   and `user_code`=#{user.userCode}
+		</if>
+		<if test="user.userState!=null and user.userState!=''">
+		    and `user_state`=#{user.userState}
+		</if>
+        <if test="user.startTime!=null and user.startTime!=''">
+		    and `create_time` LIKE CONCAT(#{user.startTime},'%')  OR
+             `create_time` > #{user.startTime}
+		</if>
+		<if test="user.endTime!=null and user.endTime!=''">
+		    and `create_time` LIKE CONCAT(#{user.endTime},'%')  OR
+             `create_time` &lt; #{user.endTime}
+		</if>
+	   ORDER BY `create_time` DESC
+	   LIMIT  #{page.pageIndex},#{page.pageLimit}     
+   </select>
+   
+   <!-- 多条件查询用户条数 -->
+   <select id="getUserCount" parameterType="UserInfo" resultType="int">
+       SELECT count(0) FROM  `user_info`  
+		where is_delete='0'
+		<if test="userCode!=null and userCode!=''">
+		   and `user_code`=#{userCode}
+		</if>
+		<if test="userState!=null and userState!=''">
+		    and `user_state`=#{userState}
+		</if>
+        <if test="startTime!=null and startTime!=''">
+		    and `create_time` LIKE CONCAT(#{startTime},'%')  OR
+             `create_time` > #{startTime}
+		</if>
+		<if test="endTime!=null and endTime!=''">
+		    and `create_time` LIKE CONCAT(#{endTime},'%')  OR
+             `create_time` &lt; #{endTime}
+		</if>
+   </select>
+</mapper>
